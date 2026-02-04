@@ -31,7 +31,9 @@ export const gpt52 = async (config: LLMProviderConfig) => {
 	});
 };
 
-export const anthropicClaudeSonnet45 = async (config: LLMProviderConfig) => {
+export const anthropicClaudeSonnet45 = async (
+	config: LLMProviderConfig,
+): Promise<BaseChatModel> => {
 	// 🔓 支持自定义模型与协议切换
 	const provider = process.env.N8N_AI_PROVIDER || 'anthropic';
 	const customModel = process.env.N8N_AI_MODEL_NAME;
