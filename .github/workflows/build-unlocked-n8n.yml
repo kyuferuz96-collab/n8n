@@ -56,22 +56,8 @@ jobs:
           # 4. AI workflow builder - bypass cloud auth
           sed -i 's/this\.client,$/process.env.N8N_AI_ANTHROPIC_KEY ? undefined : this.client, \/\/ 🔓 Bypass/' packages/cli/src/services/ai-workflow-builder.service.ts
 
-          # 5. AI controller - unlimited credits
-          sed -i '/async getBuilderCredits(/,/^[[:space:]]*}[[:space:]]*$/c\
-          async getBuilderCredits(\
-              req: AuthenticatedRequest,\
-              _: Response,\
-          ): Promise<AiAssistantSDK.BuilderInstanceCreditsResponse> {\
-              try {\
-                  if (process.env.N8N_AI_ANTHROPIC_KEY) {\
-                      return { creditsQuota: 999999, creditsClaimed: 0 };\
-                  }\
-                  return await this.workflowBuilderService.getBuilderInstanceCredits(req.user);\
-              } catch (e) {\
-                  assert(e instanceof Error);\
-                  throw new InternalServerError(e.message, e);\
-              }\
-          }' packages/cli/src/controllers/ai.controller.ts
+          # Note: ai.controller.ts, llm-config.ts, and ai-workflow-builder-agent.service.ts
+          # are already modified in the source code, no sed needed
 
           echo "✅ All modifications applied"
           SCRIPT_END
