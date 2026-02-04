@@ -1,0 +1,108 @@
+name: Build Unlocked n8n Docker Image
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Docker image tag'
+        required: false
+        default: 'unlocked-latest'
+
+env:
+  DOCKER_IMAGE_NAME: n8n-unlocked
+  DOCKER_REGISTRY: docker.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - name: Apply modifications script
+        run: |
+          cat > apply-mods.sh << 'SCRIPT_END'
+          #!/bin/bash
+          set -e
+
+          echo "🔓 Applying n8n enterprise unlock modifications..."
+
+          # 1. License unlock
+          sed -i 's/return this\.manager?.hasFeatureEnabled(feature) ?? false;/return true; \/\/ 🔓 Unlocked/' packages/cli/src/license.ts
+
+          # 2. Frontend service - AI Assistant
+          sed -i 's/this\.settings\.aiAssistant\.setup =$/this.settings.aiAssistant.setup = true; \/\/ 🔓 Forced/' packages/cli/src/services/frontend.service.ts
+          sed -i '/!!this\.globalConfig\.aiAssistant\.baseUrl || !!process\.env\.N8N_AI_ANTHROPIC_KEY;/d' packages/cli/src/services/frontend.service.ts
+
+          # 3. Frontend service - AI Builder
+          sed -i 's/this\.settings\.aiBuilder\.setup =$/this.settings.aiBuilder.setup = true; \/\/ 🔓 Forced/' packages/cli/src/services/frontend.service.ts
+          sed -i '/!!this\.globalConfig\.aiAssistant\.baseUrl || !!this\.globalConfig\.aiBuilder\.apiKey;/d' packages/cli/src/services/frontend.service.ts
+
+          # 4. AI workflow builder - bypass cloud auth
+          sed -i 's/this\.client,$/process.env.N8N_AI_ANTHROPIC_KEY ? undefined : this.client, \/\/ 🔓 Bypass/' packages/cli/src/services/ai-workflow-builder.service.ts
+
+          # 5. AI controller - unlimited credits
+          sed -i '/async getBuilderCredits(/,/^[[:space:]]*}[[:space:]]*$/c\
+          async getBuilderCredits(\
+              req: AuthenticatedRequest,\
+              _: Response,\
+          ): Promise<AiAssistantSDK.BuilderInstanceCreditsResponse> {\
+              try {\
+                  if (process.env.N8N_AI_ANTHROPIC_KEY) {\
+                      return { creditsQuota: 999999, creditsClaimed: 0 };\
+                  }\
+                  return await this.workflowBuilderService.getBuilderInstanceCredits(req.user);\
+              } catch (e) {\
+                  assert(e instanceof Error);\
+                  throw new InternalServerError(e.message, e);\
+              }\
+          }' packages/cli/src/controllers/ai.controller.ts
+
+          echo "✅ All modifications applied"
+          SCRIPT_END
+
+          chmod +x apply-mods.sh
+          ./apply-mods.sh
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build n8n
+        run: pnpm build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG="${{ github.event.inputs.tag || 'unlocked-latest' }}"
+          pnpm build:docker
+
+          docker tag n8nio/n8n:local ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${IMAGE_TAG}
+          docker push ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${IMAGE_TAG}
+
+          echo "✅ Docker image: ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${IMAGE_TAG}"
+
+

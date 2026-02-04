@@ -145,9 +145,13 @@ export class WorkflowBuilderService {
 		const { nodes: nodeTypeDescriptions } = this.loadNodesAndCredentials.types;
 		this.loadNodesAndCredentials.releaseTypes();
 
+		// 🔓 绕过云服务认证 - 如果配置了本地 Key，则不传递 client
+		// 这样可以直接使用本地 API Key 而不是通过 n8n 云服务代理
+		const clientToUse = process.env.N8N_AI_ANTHROPIC_KEY ? undefined : this.client;
+
 		this.service = new AiWorkflowBuilderService(
 			nodeTypeDescriptions,
-			this.client,
+			clientToUse,
 			this.logger,
 			this.instanceSettings.instanceId,
 			this.urlService.getInstanceBaseUrl(),

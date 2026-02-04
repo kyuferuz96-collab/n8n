@@ -488,8 +488,10 @@ export class FrontendService {
 
 		if (isAiAssistantEnabled) {
 			this.settings.aiAssistant.enabled = isAiAssistantEnabled;
-			this.settings.aiAssistant.setup =
-				!!this.globalConfig.aiAssistant.baseUrl || !!process.env.N8N_AI_ANTHROPIC_KEY;
+			// 🔓 强制显示 AI Assistant - 绕过云服务配置检查
+			this.settings.aiAssistant.setup = true;
+			// this.settings.aiAssistant.setup =
+			// 	!!this.globalConfig.aiAssistant.baseUrl || !!process.env.N8N_AI_ANTHROPIC_KEY;
 		}
 
 		if (isAskAiEnabled) {
@@ -504,8 +506,10 @@ export class FrontendService {
 
 		if (isAiBuilderEnabled) {
 			this.settings.aiBuilder.enabled = isAiBuilderEnabled;
-			this.settings.aiBuilder.setup =
-				!!this.globalConfig.aiAssistant.baseUrl || !!this.globalConfig.aiBuilder.apiKey;
+			// 🔓 强制显示 AI Builder - 绕过云服务配置检查
+			this.settings.aiBuilder.setup = true;
+			// this.settings.aiBuilder.setup =
+			// 	!!this.globalConfig.aiAssistant.baseUrl || !!this.globalConfig.aiBuilder.apiKey;
 		}
 
 		this.settings.mfa.enabled = this.globalConfig.mfa.enabled;

@@ -32,25 +32,63 @@ export const gpt52 = async (config: LLMProviderConfig) => {
 };
 
 export const anthropicClaudeSonnet45 = async (config: LLMProviderConfig) => {
-	const { ChatAnthropic } = await import('@langchain/anthropic');
-	const model = new ChatAnthropic({
-		model: 'claude-sonnet-4-5-20250929',
-		apiKey: config.apiKey,
-		temperature: 0,
-		maxTokens: MAX_OUTPUT_TOKENS,
-		anthropicApiUrl: config.baseUrl,
-		clientOptions: {
-			defaultHeaders: config.headers,
-			fetchOptions: {
-				dispatcher: getProxyAgent(config.baseUrl),
+	// 🔓 支持自定义模型与协议切换
+	const provider = process.env.N8N_AI_PROVIDER || 'anthropic';
+	const customModel = process.env.N8N_AI_MODEL_NAME;
+
+	// 根据 provider 选择不同的实现
+	if (provider === 'openai') {
+		// 使用 OpenAI 协议
+		const { ChatOpenAI } = await import('@langchain/openai');
+
+		// 自动补全路径：OpenAI 需要 /chat/completions
+		let baseUrl = config.baseUrl;
+		if (baseUrl && !baseUrl.includes('/chat/completions')) {
+			baseUrl = baseUrl.replace(/\/$/, '') + '/chat/completions';
+		}
+
+		return new ChatOpenAI({
+			model: customModel || 'gpt-4',
+			apiKey: config.apiKey,
+			temperature: 0,
+			maxTokens: -1,
+			configuration: {
+				baseURL: baseUrl,
+				defaultHeaders: config.headers,
+				fetchOptions: {
+					dispatcher: getProxyAgent(baseUrl ?? 'https://api.openai.com/v1'),
+				},
 			},
-		},
-	});
+		});
+	} else {
+		// 使用 Anthropic 协议（默认）
+		const { ChatAnthropic } = await import('@langchain/anthropic');
 
-	// Remove Langchain default topP parameter since Sonnet 4.5 doesn't allow setting both temperature and topP
-	delete model.topP;
+		// 自动补全路径：Anthropic 需要 /v1/messages
+		let anthropicUrl = config.baseUrl;
+		if (anthropicUrl && !anthropicUrl.includes('/v1/messages')) {
+			anthropicUrl = anthropicUrl.replace(/\/$/, '') + '/v1/messages';
+		}
 
-	return model;
+		const model = new ChatAnthropic({
+			model: customModel || 'claude-sonnet-4-5-20250929',
+			apiKey: config.apiKey,
+			temperature: 0,
+			maxTokens: MAX_OUTPUT_TOKENS,
+			anthropicApiUrl: anthropicUrl,
+			clientOptions: {
+				defaultHeaders: config.headers,
+				fetchOptions: {
+					dispatcher: getProxyAgent(anthropicUrl),
+				},
+			},
+		});
+
+		// Remove Langchain default topP parameter since Sonnet 4.5 doesn't allow setting both temperature and topP
+		delete model.topP;
+
+		return model;
+	}
 };
 export const anthropicClaudeSonnet45Think = async (config: LLMProviderConfig) => {
 	const { ChatAnthropic } = await import('@langchain/anthropic');

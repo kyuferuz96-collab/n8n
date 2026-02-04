@@ -239,6 +239,16 @@ export class AiController {
 		_: Response,
 	): Promise<AiAssistantSDK.BuilderInstanceCreditsResponse> {
 		try {
+			// 🔓 屏蔽远端配额查询 - 直接返回无限额度
+			// 避免请求云端接口失败导致 UI 报错
+			if (process.env.N8N_AI_ANTHROPIC_KEY) {
+				return {
+					creditsQuota: 999999,
+					creditsClaimed: 0,
+				};
+			}
+
+			// 如果没有配置本地 Key，则使用原有逻辑
 			return await this.workflowBuilderService.getBuilderInstanceCredits(req.user);
 		} catch (e) {
 			assert(e instanceof Error);

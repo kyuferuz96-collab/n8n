@@ -252,7 +252,9 @@ export class License implements LicenseProvider {
 	}
 
 	isLicensed(feature: BooleanLicenseFeature) {
-		return this.manager?.hasFeatureEnabled(feature) ?? false;
+		// 🔓 解锁所有企业版功能 - 绕过许可证校验
+		return true;
+		// return this.manager?.hasFeatureEnabled(feature) ?? false;
 	}
 
 	/** @deprecated Use `LicenseState.isDynamicCredentialsLicensed` instead. */

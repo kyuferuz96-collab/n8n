@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  n8n-unlocked:
+    image: <你的用户名>/n8n-unlocked:unlocked-latest
+    container_name: n8n-unlocked
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # ========================================
+      # 基础配置
+      # ========================================
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      
+      # ========================================
+      # 🔓 AI 功能配置（必须）
+      # ========================================
+      - N8N_AI_ENABLED=true
+      
+      # API Key（必须设置，触发直连模式）
+      - N8N_AI_ANTHROPIC_KEY=your-api-key-here
+      
+      # AI 接口地址（必须设置）
+      # 示例：
+      # - Moonshot AI: https://api.moonshot.cn
+      # - OpenAI: https://api.openai.com/v1
+      # - 自建服务: https://your-ai-service.com
+      - N8N_AI_ASSISTANT_BASE_URL=https://api.moonshot.cn
+      
+      # ========================================
+      # 🔓 自定义模型配置（可选）
+      # ========================================
+      
+      # 模型名称（可选，不设置则使用默认模型）
+      # 示例：
+      # - Moonshot: moonshot-v1-8k, moonshot-v1-32k, moonshot-v1-128k
+      # - OpenAI: gpt-4, gpt-3.5-turbo
+      # - Kimi: kimi-k2.5
+      - N8N_AI_MODEL_NAME=moonshot-v1-32k
+      
+      # 协议类型（可选，默认 anthropic）
+      # 选项：anthropic 或 openai
+      # - anthropic: 使用 Claude 协议（自动补全 /v1/messages）
+      # - openai: 使用 OpenAI 协议（自动补全 /chat/completions）
+      - N8N_AI_PROVIDER=anthropic
+      
+      # ========================================
+      # 数据持久化
+      # ========================================
+      - N8N_USER_FOLDER=/home/node/.n8n
+      
+      # ========================================
+      # 其他配置（可选）
+      # ========================================
+      
+      # 时区
+      - TZ=Asia/Shanghai
+      
+      # 日志级别
+      - N8N_LOG_LEVEL=info
+      
+      # 执行数据保存
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=all
+      - EXECUTIONS_DATA_SAVE_MANUAL_EXECUTIONS=true
+      
+    volumes:
+      # 数据持久化
+      - n8n_data:/home/node/.n8n
+      
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  n8n_data:
+    driver: local
+
+# ========================================
+# 使用说明
+# ========================================
+#
+# 1. 替换 <你的用户名> 为你的 Docker Hub 用户名
+# 2. 设置 N8N_AI_ANTHROPIC_KEY 为你的 API Key
+# 3. 设置 N8N_AI_ASSISTANT_BASE_URL 为你的 AI 服务地址
+# 4. 根据需要调整 N8N_AI_MODEL_NAME 和 N8N_AI_PROVIDER
+#
+# 启动服务：
+#   docker-compose up -d
+#
+# 查看日志：
+#   docker-compose logs -f
+#
+# 停止服务：
+#   docker-compose down
+#
+# 访问地址：
+#   http://localhost:5678
+
