@@ -92,7 +92,7 @@ jobs:
           echo "🔎 Verifying AI Builder direct endpoint support is included..."
           grep -R "N8N_AI_LLM_BASE_URL" -n compiled 2>/dev/null | head -n 20
 
-          node scripts/dockerize-n8n.mjs
+          BUILD_RUNNERS=false node scripts/dockerize-n8n.mjs
 
           docker tag n8nio/n8n:local ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${IMAGE_TAG}
           docker push ${{ env.DOCKER_REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${IMAGE_TAG}
