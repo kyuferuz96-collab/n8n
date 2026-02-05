@@ -49,3 +49,6 @@ packages/cli/src/commands/export/outputs
 .data
 .data/
 .claude/settings.local.json
+
+# Local deploy experiments
+_deploy_test*/
