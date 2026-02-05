@@ -43,11 +43,16 @@ export const anthropicClaudeSonnet45 = async (
 		// 使用 OpenAI 协议
 		const { ChatOpenAI } = await import('@langchain/openai');
 
-		// 自动补全路径：OpenAI 需要 /chat/completions
-		let baseUrl = config.baseUrl;
-		if (baseUrl && !baseUrl.includes('/chat/completions')) {
-			baseUrl = baseUrl.replace(/\/$/, '') + '/chat/completions';
+		let baseUrl = config.baseUrl?.replace(/\/$/, '');
+		// If user provided the full endpoint, normalize it back to the API base URL.
+		if (baseUrl) {
+			baseUrl = baseUrl.replace(/\/chat\/completions$/, '');
+			// Most OpenAI-compatible providers expect /v1 as the API base.
+			if (!baseUrl.includes('/v1')) {
+				baseUrl = baseUrl + '/v1';
+			}
 		}
+		const baseUrlForProxy = baseUrl ?? 'https://api.openai.com/v1';
 
 		return new ChatOpenAI({
 			model: customModel || 'gpt-4',
@@ -58,7 +63,7 @@ export const anthropicClaudeSonnet45 = async (
 				baseURL: baseUrl,
 				defaultHeaders: config.headers,
 				fetchOptions: {
-					dispatcher: getProxyAgent(baseUrl ?? 'https://api.openai.com/v1'),
+					dispatcher: getProxyAgent(baseUrlForProxy),
 				},
 			},
 		});
@@ -66,11 +71,13 @@ export const anthropicClaudeSonnet45 = async (
 		// 使用 Anthropic 协议（默认）
 		const { ChatAnthropic } = await import('@langchain/anthropic');
 
-		// 自动补全路径：Anthropic 需要 /v1/messages
-		let anthropicUrl = config.baseUrl;
-		if (anthropicUrl && !anthropicUrl.includes('/v1/messages')) {
-			anthropicUrl = anthropicUrl.replace(/\/$/, '') + '/v1/messages';
+		let anthropicUrl = config.baseUrl?.replace(/\/$/, '');
+		// If user provided the full endpoint, normalize it back to the API base URL.
+		if (anthropicUrl) {
+			anthropicUrl = anthropicUrl.replace(/\/v1\/messages$/, '');
+			anthropicUrl = anthropicUrl.replace(/\/v1$/, '');
 		}
+		const anthropicUrlForProxy = anthropicUrl ?? 'https://api.anthropic.com';
 
 		const model = new ChatAnthropic({
 			model: customModel || 'claude-sonnet-4-5-20250929',
@@ -81,7 +88,7 @@ export const anthropicClaudeSonnet45 = async (
 			clientOptions: {
 				defaultHeaders: config.headers,
 				fetchOptions: {
-					dispatcher: getProxyAgent(anthropicUrl),
+					dispatcher: getProxyAgent(anthropicUrlForProxy),
 				},
 			},
 		});

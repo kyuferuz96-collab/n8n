@@ -1,4 +1,3 @@
-import { ChatAnthropic } from '@langchain/anthropic';
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
@@ -64,13 +63,20 @@ export class AiWorkflowBuilderService {
 		authHeaders?: Record<string, string>;
 		apiKey?: string;
 	} = {}): Promise<BaseChatModel> {
+		const provider = process.env.N8N_AI_PROVIDER || 'anthropic';
+		const isAnthropicProvider = provider !== 'openai' || (baseUrl?.includes('/anthropic') ?? false);
+
 		return await anthropicClaudeSonnet45({
 			baseUrl,
 			apiKey,
 			headers: {
 				...authHeaders,
-				// eslint-disable-next-line @typescript-eslint/naming-convention
-				'anthropic-beta': 'prompt-caching-2024-07-31',
+				...(isAnthropicProvider
+					? {
+							// eslint-disable-next-line @typescript-eslint/naming-convention
+							'anthropic-beta': 'prompt-caching-2024-07-31',
+						}
+					: {}),
 			},
 		});
 	}
@@ -125,8 +131,15 @@ export class AiWorkflowBuilderService {
 			}
 
 			// If base URL is not set, use environment variables
+			const provider = process.env.N8N_AI_PROVIDER || 'anthropic';
+			const apiKey =
+				provider === 'openai'
+					? (process.env.N8N_AI_OPENAI_KEY ?? process.env.N8N_AI_ANTHROPIC_KEY ?? '')
+					: (process.env.N8N_AI_ANTHROPIC_KEY ?? '');
+
 			const anthropicClaude = await AiWorkflowBuilderService.getAnthropicClaudeModel({
-				apiKey: process.env.N8N_AI_ANTHROPIC_KEY ?? '',
+				apiKey,
+				baseUrl: process.env.N8N_AI_LLM_BASE_URL || undefined,
 			});
 
 			return { anthropicClaude };

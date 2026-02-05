@@ -6,9 +6,8 @@
 
 ### 已解锁的企业功能
 - ✅ **全局许可证绕过** - 所有企业版功能无需许可证
-- ✅ **AI Assistant** - 强制启用 AI 助手
 - ✅ **AI Builder** - 强制启用 AI 工作流构建器
-- ✅ **云服务绕过** - 直接使用本地 API Key，不经过 n8n 云服务
+- ✅ **直连 LLM（AI Builder）** - 使用本地 API Key 直连模型，不依赖 n8n 云端代理
 - ✅ **无限配额** - 绕过远端配额查询，返回无限额度
 - ✅ **自定义模型** - 支持切换 OpenAI/Anthropic 协议和自定义模型
 
@@ -69,7 +68,10 @@ services:
       # 🔓 AI 功能配置（必须）
       - N8N_AI_ENABLED=true
       - N8N_AI_ANTHROPIC_KEY=your-api-key-here
-      - N8N_AI_ASSISTANT_BASE_URL=https://api.your-provider.com
+      # 工作流生成器直连 LLM 的自定义 Base URL（可选）
+      # - provider=anthropic: https://api.anthropic.com
+      # - provider=openai: https://api.openai.com/v1
+      - N8N_AI_LLM_BASE_URL=
       
       # 🔓 自定义模型配置（可选）
       - N8N_AI_MODEL_NAME=kimi-k2.5
@@ -99,7 +101,8 @@ docker-compose up -d
 |--------|------|--------|------|
 | `N8N_AI_ENABLED` | ✅ | - | 全局开启 AI 模块 |
 | `N8N_AI_ANTHROPIC_KEY` | ✅ | - | API Key（设置后自动切换为直连模式） |
-| `N8N_AI_ASSISTANT_BASE_URL` | ✅ | - | AI 接口地址 |
+| `N8N_AI_LLM_BASE_URL` | ❌ | - | 直连 LLM 的 API Base URL（不影响 n8n 官方 AI Assistant） |
+| `N8N_AI_ASSISTANT_BASE_URL` | ❌ | - | n8n 官方 AI Assistant Service Base URL（通常留空） |
 | `N8N_AI_MODEL_NAME` | ❌ | - | 自定义模型名称 |
 | `N8N_AI_PROVIDER` | ❌ | `anthropic` | 协议类型：`anthropic` 或 `openai` |
 
@@ -111,12 +114,12 @@ docker-compose up -d
 示例：
 ```bash
 # Anthropic 兼容接口
-N8N_AI_ASSISTANT_BASE_URL=https://api.moonshot.cn
-# 实际请求：https://api.moonshot.cn/v1/messages
+N8N_AI_LLM_BASE_URL=https://api.your-anthropic-proxy.com
+# 实际请求：https://api.your-anthropic-proxy.com/v1/messages
 
 # OpenAI 兼容接口
 N8N_AI_PROVIDER=openai
-N8N_AI_ASSISTANT_BASE_URL=https://api.openai.com/v1
+N8N_AI_LLM_BASE_URL=https://api.openai.com/v1
 # 实际请求：https://api.openai.com/v1/chat/completions
 ```
 

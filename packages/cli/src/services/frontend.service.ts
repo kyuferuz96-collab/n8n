@@ -488,10 +488,9 @@ export class FrontendService {
 
 		if (isAiAssistantEnabled) {
 			this.settings.aiAssistant.enabled = isAiAssistantEnabled;
-			// 🔓 强制显示 AI Assistant - 绕过云服务配置检查
-			this.settings.aiAssistant.setup = true;
-			// this.settings.aiAssistant.setup =
-			// 	!!this.globalConfig.aiAssistant.baseUrl || !!process.env.N8N_AI_ANTHROPIC_KEY;
+			// AI Assistant 依赖 n8n 官方 AI Assistant Service（通过 SDK 连接）
+			// 直连 LLM 的环境变量仅用于 AI Builder，不适用于 AI Assistant
+			this.settings.aiAssistant.setup = !!this.globalConfig.aiAssistant.baseUrl;
 		}
 
 		if (isAskAiEnabled) {
