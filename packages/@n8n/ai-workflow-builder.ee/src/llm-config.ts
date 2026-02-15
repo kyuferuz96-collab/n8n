@@ -14,6 +14,31 @@ export interface LLMProviderConfig {
 	headers?: Record<string, string>;
 }
 
+function getAnthropicHeaders(
+	headers: Record<string, string> | undefined,
+	baseUrl: string | undefined,
+): Record<string, string> | undefined {
+	const mergedHeaders: Record<string, string> = {
+		...(headers ?? {}),
+	};
+
+	const hasUserAgentHeader = Object.keys(mergedHeaders).some(
+		(headerName) => headerName.toLowerCase() === 'user-agent',
+	);
+
+	if (!hasUserAgentHeader) {
+		const customUserAgent = process.env.N8N_AI_LLM_USER_AGENT?.trim();
+		if (customUserAgent) {
+			mergedHeaders['user-agent'] = customUserAgent;
+		} else if (baseUrl) {
+			// Some custom Anthropic-compatible gateways block Anthropic SDK default user-agent.
+			mergedHeaders['user-agent'] = 'n8n-ai-workflow-builder/1.0';
+		}
+	}
+
+	return Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined;
+}
+
 export const gpt52 = async (config: LLMProviderConfig) => {
 	const { ChatOpenAI } = await import('@langchain/openai');
 	return new ChatOpenAI({
@@ -86,7 +111,7 @@ export const anthropicClaudeSonnet45 = async (
 			maxTokens: MAX_OUTPUT_TOKENS,
 			anthropicApiUrl: anthropicUrl,
 			clientOptions: {
-				defaultHeaders: config.headers,
+				defaultHeaders: getAnthropicHeaders(config.headers, anthropicUrl),
 				fetchOptions: {
 					dispatcher: getProxyAgent(anthropicUrlForProxy),
 				},
@@ -111,7 +136,7 @@ export const anthropicClaudeSonnet45Think = async (config: LLMProviderConfig) =>
 			type: 'enabled',
 		},
 		clientOptions: {
-			defaultHeaders: config.headers,
+			defaultHeaders: getAnthropicHeaders(config.headers, config.baseUrl),
 			fetchOptions: {
 				dispatcher: getProxyAgent(config.baseUrl),
 			},
@@ -134,7 +159,7 @@ export const anthropicHaiku45 = async (config: LLMProviderConfig) => {
 		maxTokens: MAX_OUTPUT_TOKENS,
 		anthropicApiUrl: config.baseUrl,
 		clientOptions: {
-			defaultHeaders: config.headers,
+			defaultHeaders: getAnthropicHeaders(config.headers, config.baseUrl),
 			fetchOptions: {
 				dispatcher: getProxyAgent(config.baseUrl),
 			},
@@ -156,7 +181,7 @@ export const anthropicClaudeOpus45 = async (config: LLMProviderConfig) => {
 		maxTokens: MAX_OUTPUT_TOKENS,
 		anthropicApiUrl: config.baseUrl,
 		clientOptions: {
-			defaultHeaders: config.headers,
+			defaultHeaders: getAnthropicHeaders(config.headers, config.baseUrl),
 			fetchOptions: {
 				dispatcher: getProxyAgent(config.baseUrl),
 			},
