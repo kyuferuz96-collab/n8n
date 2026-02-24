@@ -141,6 +141,10 @@ export const defaultSettings: FrontendSettings = {
 	aiBuilder: {
 		enabled: false,
 		setup: false,
+		provider: 'anthropic',
+		baseUrl: '',
+		hasApiKey: false,
+		useResponsesApi: true,
 	},
 	workflowHistory: {
 		pruneTime: 0,

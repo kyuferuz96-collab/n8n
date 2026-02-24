@@ -1,6 +1,6 @@
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { LangChainTracer } from '@langchain/core/tracers/tracer_langchain';
 import { Logger } from '@n8n/backend-common';
 import { Service } from '@n8n/di';
@@ -23,6 +23,13 @@ type OnCreditsUpdated = (userId: string, creditsQuota: number, creditsClaimed: n
 
 type OnTelemetryEvent = (event: string, properties: ITelemetryTrackProperties) => void;
 
+type LlmSettings = {
+	provider: 'anthropic' | 'openai';
+	apiKey?: string;
+	baseUrl?: string;
+	useResponsesApi?: boolean;
+};
+
 @Service()
 export class AiWorkflowBuilderService {
 	private nodeTypes: INodeTypeDescription[];
@@ -39,6 +46,7 @@ export class AiWorkflowBuilderService {
 		private readonly onCreditsUpdated?: OnCreditsUpdated,
 		private readonly onTelemetryEvent?: OnTelemetryEvent,
 		private readonly resourceLocatorCallbackFactory?: ResourceLocatorCallbackFactory,
+		private readonly llmSettings?: LlmSettings,
 	) {
 		this.nodeTypes = this.filterNodeTypes(parsedNodeTypes);
 		this.sessionManager = new SessionManagerService(this.nodeTypes, logger);
@@ -58,17 +66,22 @@ export class AiWorkflowBuilderService {
 		baseUrl,
 		authHeaders = {},
 		apiKey = '-',
+		provider = 'anthropic',
+		useResponsesApi = true,
 	}: {
 		baseUrl?: string;
 		authHeaders?: Record<string, string>;
 		apiKey?: string;
+		provider?: 'anthropic' | 'openai';
+		useResponsesApi?: boolean;
 	} = {}): Promise<BaseChatModel> {
-		const provider = process.env.N8N_AI_PROVIDER || 'anthropic';
 		const isAnthropicProvider = provider !== 'openai' || (baseUrl?.includes('/anthropic') ?? false);
 
 		return await anthropicClaudeSonnet45({
 			baseUrl,
 			apiKey,
+			provider,
+			useResponsesApi,
 			headers: {
 				...authHeaders,
 				...(isAnthropicProvider
@@ -130,16 +143,23 @@ export class AiWorkflowBuilderService {
 				return { tracingClient, anthropicClaude, authHeaders };
 			}
 
-			// If base URL is not set, use environment variables
-			const provider = process.env.N8N_AI_PROVIDER || 'anthropic';
+			// If the API proxy client is not available, use local provider settings.
+			const provider =
+				this.llmSettings?.provider ??
+				(process.env.N8N_AI_PROVIDER === 'openai' ? 'openai' : 'anthropic');
 			const apiKey =
-				provider === 'openai'
+				this.llmSettings?.apiKey ??
+				(provider === 'openai'
 					? (process.env.N8N_AI_OPENAI_KEY ?? process.env.N8N_AI_ANTHROPIC_KEY ?? '')
-					: (process.env.N8N_AI_ANTHROPIC_KEY ?? '');
+					: (process.env.N8N_AI_ANTHROPIC_KEY ?? ''));
+			const baseUrl = this.llmSettings?.baseUrl ?? process.env.N8N_AI_LLM_BASE_URL ?? undefined;
+			const useResponsesApi = this.llmSettings?.useResponsesApi ?? true;
 
 			const anthropicClaude = await AiWorkflowBuilderService.getAnthropicClaudeModel({
+				provider,
+				useResponsesApi,
 				apiKey,
-				baseUrl: process.env.N8N_AI_LLM_BASE_URL || undefined,
+				baseUrl,
 			});
 
 			return { anthropicClaude };

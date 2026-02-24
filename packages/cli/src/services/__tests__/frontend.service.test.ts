@@ -13,6 +13,7 @@ import type { MfaService } from '@/mfa/mfa.service';
 import { CommunityPackagesConfig } from '@/modules/community-packages/community-packages.config';
 import type { PushConfig } from '@/push/push.config';
 import type { AiUsageService } from '@/services/ai-usage.service';
+import type { AiBuilderSettingsService } from '@/services/ai-builder-settings.service';
 import { FrontendService, type PublicFrontendSettings } from '@/services/frontend.service';
 import type { UrlService } from '@/services/url.service';
 import type { UserManagementMailer } from '@/user-management/email';
@@ -159,6 +160,15 @@ describe('FrontendService', () => {
 		getAiUsageSettings: jest.fn().mockResolvedValue(true),
 	});
 
+	const aiBuilderSettingsService = mock<AiBuilderSettingsService>({
+		getFrontendSettings: jest.fn().mockResolvedValue({
+			provider: 'anthropic',
+			baseUrl: '',
+			hasApiKey: false,
+			useResponsesApi: true,
+		}),
+	});
+
 	const createMockService = () => {
 		Container.set(
 			CommunityPackagesConfig,
@@ -186,6 +196,7 @@ describe('FrontendService', () => {
 				mfaService,
 				ownershipService,
 				aiUsageService,
+				aiBuilderSettingsService,
 			),
 			license,
 		};
@@ -194,6 +205,12 @@ describe('FrontendService', () => {
 	beforeEach(() => {
 		originalEnv = process.env;
 		jest.clearAllMocks();
+		aiBuilderSettingsService.getFrontendSettings.mockResolvedValue({
+			provider: 'anthropic',
+			baseUrl: '',
+			hasApiKey: false,
+			useResponsesApi: true,
+		});
 	});
 
 	afterEach(() => {
@@ -390,6 +407,10 @@ describe('FrontendService', () => {
 			expect(initialSettings.aiBuilder).toEqual({
 				enabled: false,
 				setup: false,
+				provider: 'anthropic',
+				baseUrl: '',
+				hasApiKey: false,
+				useResponsesApi: true,
 			});
 		});
 
@@ -403,6 +424,24 @@ describe('FrontendService', () => {
 			const settings = await service.getSettings();
 
 			expect(settings.aiBuilder.enabled).toBe(true);
+		});
+
+		it('should set aiBuilder.setup to true when local API key is configured', async () => {
+			const { service, license } = createMockService();
+			license.isLicensed.mockImplementation((feature) => feature === 'feat:aiBuilder');
+			aiBuilderSettingsService.getFrontendSettings.mockResolvedValue({
+				provider: 'openai',
+				baseUrl: 'https://api.openai.com/v1',
+				hasApiKey: true,
+				useResponsesApi: true,
+			});
+
+			const settings = await service.getSettings();
+
+			expect(settings.aiBuilder.setup).toBe(true);
+			expect(settings.aiBuilder.provider).toBe('openai');
+			expect(settings.aiBuilder.baseUrl).toBe('https://api.openai.com/v1');
+			expect(settings.aiBuilder.hasApiKey).toBe(true);
 		});
 
 		it('should keep aiBuilder.enabled as false when license does not have feat:aiBuilder', async () => {

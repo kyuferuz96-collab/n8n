@@ -10,6 +10,7 @@ import * as eventsApi from '@n8n/rest-api-client/api/events';
 import * as settingsApi from '@n8n/rest-api-client/api/settings';
 import * as moduleSettingsApi from '@n8n/rest-api-client/api/module-settings';
 import * as aiUsageApi from '@n8n/rest-api-client/api/ai-usage';
+import * as aiBuilderSettingsApi from '@n8n/rest-api-client/api/ai-builder-settings';
 import { testHealthEndpoint } from '@n8n/rest-api-client/api/templates';
 import { INSECURE_CONNECTION_WARNING } from '@/app/constants';
 import { STORES } from '@n8n/stores';
@@ -18,6 +19,7 @@ import type { IDataObject, WorkflowSettings } from 'n8n-workflow';
 import { defineStore } from 'pinia';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { makeRestApiRequest } from '@n8n/rest-api-client';
+import type { AiBuilderSettingsRequestDto } from '@n8n/api-types';
 
 export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 	const initialized = ref(false);
@@ -343,6 +345,23 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 		}
 	};
 
+	const updateAiBuilderApiSettings = async (data: AiBuilderSettingsRequestDto) => {
+		const rootStore = useRootStore();
+		const updated = await aiBuilderSettingsApi.updateAiBuilderSettings(
+			rootStore.restApiContext,
+			data,
+		);
+
+		if (settings.value.aiBuilder) {
+			settings.value.aiBuilder.provider = updated.provider;
+			settings.value.aiBuilder.baseUrl = updated.baseUrl;
+			settings.value.aiBuilder.hasApiKey = updated.hasApiKey;
+			settings.value.aiBuilder.useResponsesApi = updated.useResponsesApi;
+			settings.value.aiBuilder.setup =
+				updated.hasApiKey || Boolean(settings.value.aiAssistant?.setup);
+		}
+	};
+
 	return {
 		settings,
 		userManagement,
@@ -415,6 +434,7 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 		getModuleSettings,
 		moduleSettings,
 		updateAiDataSharingSettings,
+		updateAiBuilderApiSettings,
 		isMFAEnforcementLicensed,
 		isMFAEnforced,
 		activeModules,

@@ -11,6 +11,7 @@ import { mock } from 'jest-mock-extended';
 import { AiController, type FlushableResponse } from '../ai.controller';
 
 import { InternalServerError } from '@/errors/response-errors/internal-server.error';
+import type { AiBuilderSettingsService } from '@/services/ai-builder-settings.service';
 import type { AiUsageService } from '@/services/ai-usage.service';
 import type { WorkflowBuilderService } from '@/services/ai-workflow-builder.service';
 import type { AiService } from '@/services/ai.service';
@@ -19,12 +20,14 @@ describe('AiController', () => {
 	const aiService = mock<AiService>();
 	const workflowBuilderService = mock<WorkflowBuilderService>();
 	const aiUsageService = mock<AiUsageService>();
+	const aiBuilderSettingsService = mock<AiBuilderSettingsService>();
 	const controller = new AiController(
 		aiService,
 		workflowBuilderService,
 		mock(),
 		mock(),
 		aiUsageService,
+		aiBuilderSettingsService,
 	);
 
 	const request = mock<AuthenticatedRequest>({
@@ -34,6 +37,13 @@ describe('AiController', () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
+		aiBuilderSettingsService.getRuntimeConfig.mockResolvedValue({
+			provider: 'anthropic',
+			baseUrl: '',
+			apiKey: '',
+			hasApiKey: false,
+			useResponsesApi: true,
+		});
 
 		response.header.mockReturnThis();
 		response.status.mockReturnThis();
@@ -418,8 +428,27 @@ describe('AiController', () => {
 
 			const result = await controller.getBuilderCredits(request, response);
 
+			expect(aiBuilderSettingsService.getRuntimeConfig).toHaveBeenCalled();
 			expect(workflowBuilderService.getBuilderInstanceCredits).toHaveBeenCalledWith(request.user);
 			expect(result).toEqual(expectedCredits);
+		});
+
+		it('should return unlimited credits when local API key is configured', async () => {
+			aiBuilderSettingsService.getRuntimeConfig.mockResolvedValue({
+				provider: 'openai',
+				baseUrl: 'https://api.openai.com/v1',
+				apiKey: 'local-key',
+				hasApiKey: true,
+				useResponsesApi: true,
+			});
+
+			const result = await controller.getBuilderCredits(request, response);
+
+			expect(workflowBuilderService.getBuilderInstanceCredits).not.toHaveBeenCalled();
+			expect(result).toEqual({
+				creditsQuota: 999999,
+				creditsClaimed: 0,
+			});
 		});
 
 		it('should throw InternalServerError if getting credits fails', async () => {

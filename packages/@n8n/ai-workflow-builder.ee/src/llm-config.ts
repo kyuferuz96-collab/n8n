@@ -12,6 +12,8 @@ export interface LLMProviderConfig {
 	apiKey: string;
 	baseUrl?: string;
 	headers?: Record<string, string>;
+	provider?: 'anthropic' | 'openai';
+	useResponsesApi?: boolean;
 }
 
 function getAnthropicHeaders(
@@ -59,19 +61,20 @@ export const gpt52 = async (config: LLMProviderConfig) => {
 export const anthropicClaudeSonnet45 = async (
 	config: LLMProviderConfig,
 ): Promise<BaseChatModel> => {
-	// 🔓 支持自定义模型与协议切换
-	const provider = process.env.N8N_AI_PROVIDER || 'anthropic';
+	const provider = config.provider ?? process.env.N8N_AI_PROVIDER ?? 'anthropic';
 	const customModel = process.env.N8N_AI_MODEL_NAME;
 
 	// 根据 provider 选择不同的实现
 	if (provider === 'openai') {
 		// 使用 OpenAI 协议
 		const { ChatOpenAI } = await import('@langchain/openai');
+		const useResponsesApi = config.useResponsesApi ?? true;
 
 		let baseUrl = config.baseUrl?.replace(/\/$/, '');
 		// If user provided the full endpoint, normalize it back to the API base URL.
 		if (baseUrl) {
 			baseUrl = baseUrl.replace(/\/chat\/completions$/, '');
+			baseUrl = baseUrl.replace(/\/responses$/, '');
 			// Most OpenAI-compatible providers expect /v1 as the API base.
 			if (!baseUrl.includes('/v1')) {
 				baseUrl = baseUrl + '/v1';
@@ -80,7 +83,7 @@ export const anthropicClaudeSonnet45 = async (
 		const baseUrlForProxy = baseUrl ?? 'https://api.openai.com/v1';
 
 		return new ChatOpenAI({
-			model: customModel || 'gpt-4',
+			model: customModel ?? 'gpt-4',
 			apiKey: config.apiKey,
 			temperature: 0,
 			maxTokens: -1,
@@ -91,6 +94,7 @@ export const anthropicClaudeSonnet45 = async (
 					dispatcher: getProxyAgent(baseUrlForProxy),
 				},
 			},
+			useResponsesApi,
 		});
 	} else {
 		// 使用 Anthropic 协议（默认）
@@ -105,7 +109,7 @@ export const anthropicClaudeSonnet45 = async (
 		const anthropicUrlForProxy = anthropicUrl ?? 'https://api.anthropic.com';
 
 		const model = new ChatAnthropic({
-			model: customModel || 'claude-sonnet-4-5-20250929',
+			model: customModel ?? 'claude-sonnet-4-5-20250929',
 			apiKey: config.apiKey,
 			temperature: 0,
 			maxTokens: MAX_OUTPUT_TOKENS,

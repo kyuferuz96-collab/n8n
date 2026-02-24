@@ -416,6 +416,8 @@ describe('AiWorkflowBuilderService', () => {
 			expect(anthropicClaudeSonnet45Mock).toHaveBeenCalledWith({
 				baseUrl: undefined,
 				apiKey: 'test-env-key',
+				provider: 'anthropic',
+				useResponsesApi: true,
 				headers: {
 					'anthropic-beta': 'prompt-caching-2024-07-31',
 				},

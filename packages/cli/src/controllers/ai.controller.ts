@@ -6,6 +6,8 @@ import {
 	AiAskRequestDto,
 	AiFreeCreditsRequestDto,
 	AiBuilderChatRequestDto,
+	AiBuilderSettingsRequestDto,
+	AiBuilderSettingsResponseDto,
 	AiSessionRetrievalRequestDto,
 	AiUsageSettingsRequestDto,
 	AiTruncateMessagesRequestDto,
@@ -24,6 +26,7 @@ import { ContentTooLargeError } from '@/errors/response-errors/content-too-large
 import { InternalServerError } from '@/errors/response-errors/internal-server.error';
 import { TooManyRequestsError } from '@/errors/response-errors/too-many-requests.error';
 import { AiUsageService } from '@/services/ai-usage.service';
+import { AiBuilderSettingsService } from '@/services/ai-builder-settings.service';
 import { WorkflowBuilderService } from '@/services/ai-workflow-builder.service';
 import { AiService } from '@/services/ai.service';
 import { UserService } from '@/services/user.service';
@@ -38,6 +41,7 @@ export class AiController {
 		private readonly credentialsService: CredentialsService,
 		private readonly userService: UserService,
 		private readonly aiUsageService: AiUsageService,
+		private readonly aiBuilderSettingsService: AiBuilderSettingsService,
 	) {}
 
 	// Use usesTemplates flag to bypass the send() wrapper which would cause
@@ -239,17 +243,48 @@ export class AiController {
 		_: Response,
 	): Promise<AiAssistantSDK.BuilderInstanceCreditsResponse> {
 		try {
-			// 🔓 屏蔽远端配额查询 - 直接返回无限额度
-			// 避免请求云端接口失败导致 UI 报错
-			if (process.env.N8N_AI_ANTHROPIC_KEY) {
+			const aiBuilderSettings = await this.aiBuilderSettingsService.getRuntimeConfig();
+
+			// When a local provider key is configured we don't consume cloud credits.
+			if (aiBuilderSettings.hasApiKey) {
 				return {
 					creditsQuota: 999999,
 					creditsClaimed: 0,
 				};
 			}
 
-			// 如果没有配置本地 Key，则使用原有逻辑
 			return await this.workflowBuilderService.getBuilderInstanceCredits(req.user);
+		} catch (e) {
+			assert(e instanceof Error);
+			throw new InternalServerError(e.message, e);
+		}
+	}
+
+	@Licensed('feat:aiBuilder')
+	@Get('/builder-settings')
+	@GlobalScope('aiAssistant:manage')
+	async getBuilderSettings(
+		_req: AuthenticatedRequest,
+		_res: Response,
+	): Promise<AiBuilderSettingsResponseDto> {
+		try {
+			return await this.aiBuilderSettingsService.getFrontendSettings();
+		} catch (e) {
+			assert(e instanceof Error);
+			throw new InternalServerError(e.message, e);
+		}
+	}
+
+	@Licensed('feat:aiBuilder')
+	@Post('/builder-settings')
+	@GlobalScope('aiAssistant:manage')
+	async updateBuilderSettings(
+		_req: AuthenticatedRequest,
+		_res: Response,
+		@Body payload: AiBuilderSettingsRequestDto,
+	): Promise<AiBuilderSettingsResponseDto> {
+		try {
+			return await this.aiBuilderSettingsService.updateSettings(payload);
 		} catch (e) {
 			assert(e instanceof Error);
 			throw new InternalServerError(e.message, e);

@@ -170,6 +170,10 @@ export interface FrontendSettings {
 	aiBuilder: {
 		enabled: boolean;
 		setup: boolean;
+		provider: 'anthropic' | 'openai';
+		baseUrl: string;
+		hasApiKey: boolean;
+		useResponsesApi: boolean;
 	};
 	deployment: {
 		type: string;

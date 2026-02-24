@@ -8,6 +8,7 @@ import type { IUser, INodeTypeDescription, ITelemetryTrackProperties } from 'n8n
 
 import type { License } from '@/license';
 import type { Push } from '@/push';
+import type { AiBuilderSettingsService } from '@/services/ai-builder-settings.service';
 import { WorkflowBuilderService } from '@/services/ai-workflow-builder.service';
 import type { DynamicNodeParametersService } from '@/services/dynamic-node-parameters.service';
 import type { UrlService } from '@/services/url.service';
@@ -34,6 +35,7 @@ describe('WorkflowBuilderService', () => {
 	let mockTelemetry: Telemetry;
 	let mockInstanceSettings: InstanceSettings;
 	let mockDynamicNodeParametersService: DynamicNodeParametersService;
+	let mockAiBuilderSettingsService: AiBuilderSettingsService;
 	let mockUser: IUser;
 
 	beforeEach(() => {
@@ -71,6 +73,7 @@ describe('WorkflowBuilderService', () => {
 		mockTelemetry = mock<Telemetry>();
 		mockInstanceSettings = mock<InstanceSettings>();
 		mockDynamicNodeParametersService = mock<DynamicNodeParametersService>();
+		mockAiBuilderSettingsService = mock<AiBuilderSettingsService>();
 		mockUser = mock<IUser>();
 		mockUser.id = 'test-user-id';
 
@@ -80,6 +83,13 @@ describe('WorkflowBuilderService', () => {
 		(mockLicense.getConsumerId as jest.Mock).mockReturnValue('test-consumer-id');
 		(mockInstanceSettings.instanceId as unknown) = 'test-instance-id';
 		mockConfig.aiAssistant = { baseUrl: '' };
+		(mockAiBuilderSettingsService.getRuntimeConfig as jest.Mock).mockResolvedValue({
+			provider: 'anthropic',
+			baseUrl: '',
+			apiKey: '',
+			hasApiKey: false,
+			useResponsesApi: true,
+		});
 
 		// Reset the mocked AiWorkflowBuilderService
 		MockedAiWorkflowBuilderService.mockClear();
@@ -95,6 +105,7 @@ describe('WorkflowBuilderService', () => {
 			mockTelemetry,
 			mockInstanceSettings,
 			mockDynamicNodeParametersService,
+			mockAiBuilderSettingsService,
 		);
 	});
 
@@ -133,6 +144,11 @@ describe('WorkflowBuilderService', () => {
 				expect.any(Function), // onCreditsUpdated callback
 				expect.any(Function), // onTelemetryEvent callback
 				expect.any(Function), // resourceLocatorCallbackFactory
+				expect.objectContaining({
+					provider: 'anthropic',
+					baseUrl: undefined,
+					useResponsesApi: true,
+				}),
 			);
 
 			expect(result.value).toEqual({ messages: ['response'] });
@@ -176,6 +192,57 @@ describe('WorkflowBuilderService', () => {
 				expect.any(Function), // onCreditsUpdated callback
 				expect.any(Function), // onTelemetryEvent callback
 				expect.any(Function), // resourceLocatorCallbackFactory
+				expect.objectContaining({
+					provider: 'anthropic',
+					baseUrl: undefined,
+					useResponsesApi: true,
+				}),
+			);
+		});
+
+		it('should skip AiAssistantClient when local API key is configured', async () => {
+			mockConfig.aiAssistant.baseUrl = 'https://ai-assistant.test.com';
+			(mockAiBuilderSettingsService.getRuntimeConfig as jest.Mock).mockResolvedValue({
+				provider: 'openai',
+				baseUrl: 'https://api.openai.com/v1',
+				apiKey: 'local-openai-key',
+				hasApiKey: true,
+				useResponsesApi: true,
+			});
+
+			const mockPayload = {
+				message: 'test message',
+				id: '12345',
+				workflowContext: {},
+			};
+
+			const mockChatGenerator = (async function* () {
+				yield { messages: ['response'] };
+			})();
+
+			const mockAiService = mock<AiWorkflowBuilderService>();
+			(mockAiService.chat as jest.Mock).mockReturnValue(mockChatGenerator);
+			MockedAiWorkflowBuilderService.mockImplementation(() => mockAiService);
+
+			const generator = service.chat(mockPayload, mockUser);
+			await generator.next();
+
+			expect(MockedAiAssistantClient).not.toHaveBeenCalled();
+			expect(MockedAiWorkflowBuilderService).toHaveBeenCalledWith(
+				mockNodeTypeDescriptions,
+				undefined,
+				mockLogger,
+				'test-instance-id',
+				'https://instance.test.com',
+				expect.any(String),
+				expect.any(Function),
+				expect.any(Function),
+				expect.any(Function),
+				expect.objectContaining({
+					provider: 'openai',
+					baseUrl: 'https://api.openai.com/v1',
+					useResponsesApi: true,
+				}),
 			);
 		});
 

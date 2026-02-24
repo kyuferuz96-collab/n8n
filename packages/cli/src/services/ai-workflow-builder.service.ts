@@ -18,6 +18,7 @@ import { N8N_VERSION } from '@/constants';
 import { License } from '@/license';
 import { LoadNodesAndCredentials } from '@/load-nodes-and-credentials';
 import { Push } from '@/push';
+import { AiBuilderSettingsService } from '@/services/ai-builder-settings.service';
 import { DynamicNodeParametersService } from '@/services/dynamic-node-parameters.service';
 import { UrlService } from '@/services/url.service';
 import { Telemetry } from '@/telemetry';
@@ -45,6 +46,7 @@ export class WorkflowBuilderService {
 		private readonly telemetry: Telemetry,
 		private readonly instanceSettings: InstanceSettings,
 		private readonly dynamicNodeParametersService: DynamicNodeParametersService,
+		private readonly aiBuilderSettingsService: AiBuilderSettingsService,
 	) {
 		// Register a post-processor to update node types when they change.
 		// This ensures newly installed/updated/uninstalled community packages are recognized
@@ -73,9 +75,11 @@ export class WorkflowBuilderService {
 	}
 
 	private async initializeService(): Promise<AiWorkflowBuilderService> {
+		const aiBuilderSettings = await this.aiBuilderSettingsService.getRuntimeConfig();
+
 		// Create AiAssistantClient if baseUrl is configured
 		const baseUrl = this.config.aiAssistant.baseUrl;
-		if (baseUrl) {
+		if (baseUrl && !aiBuilderSettings.hasApiKey) {
 			const licenseCert = await this.license.loadCertStr();
 			const consumerId = this.license.getConsumerId();
 
@@ -145,9 +149,7 @@ export class WorkflowBuilderService {
 		const { nodes: nodeTypeDescriptions } = this.loadNodesAndCredentials.types;
 		this.loadNodesAndCredentials.releaseTypes();
 
-		// 🔓 绕过云服务认证 - 如果配置了本地 Key，则不传递 client
-		// 这样可以直接使用本地 API Key 而不是通过 n8n 云服务代理
-		const clientToUse = process.env.N8N_AI_ANTHROPIC_KEY ? undefined : this.client;
+		const clientToUse = aiBuilderSettings.hasApiKey ? undefined : this.client;
 
 		this.service = new AiWorkflowBuilderService(
 			nodeTypeDescriptions,
@@ -159,6 +161,12 @@ export class WorkflowBuilderService {
 			onCreditsUpdated,
 			onTelemetryEvent,
 			resourceLocatorCallbackFactory,
+			{
+				provider: aiBuilderSettings.provider,
+				apiKey: aiBuilderSettings.apiKey,
+				baseUrl: aiBuilderSettings.baseUrl || undefined,
+				useResponsesApi: aiBuilderSettings.useResponsesApi,
+			},
 		);
 
 		return this.service;

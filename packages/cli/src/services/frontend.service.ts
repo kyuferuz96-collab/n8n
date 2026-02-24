@@ -29,6 +29,7 @@ import {
 	getWorkflowHistoryPruneTime,
 } from '@/workflows/workflow-history/workflow-history-helper';
 import { AiUsageService } from './ai-usage.service';
+import { AiBuilderSettingsService } from './ai-builder-settings.service';
 import { UrlService } from './url.service';
 
 /**
@@ -122,6 +123,7 @@ export class FrontendService {
 		private readonly mfaService: MfaService,
 		private readonly ownershipService: OwnershipService,
 		private readonly aiUsageService: AiUsageService,
+		private readonly aiBuilderSettingsService: AiBuilderSettingsService,
 	) {
 		loadNodesAndCredentials.addPostProcessor(async () => await this.generateTypes());
 		void this.generateTypes();
@@ -337,6 +339,10 @@ export class FrontendService {
 			aiBuilder: {
 				enabled: false,
 				setup: false,
+				provider: 'anthropic',
+				baseUrl: '',
+				hasApiKey: false,
+				useResponsesApi: true,
 			},
 			aiCredits: {
 				enabled: false,
@@ -504,11 +510,15 @@ export class FrontendService {
 		}
 
 		if (isAiBuilderEnabled) {
+			const aiBuilderSettings = await this.aiBuilderSettingsService.getFrontendSettings();
+
 			this.settings.aiBuilder.enabled = isAiBuilderEnabled;
-			// 🔓 强制显示 AI Builder - 绕过云服务配置检查
-			this.settings.aiBuilder.setup = true;
-			// this.settings.aiBuilder.setup =
-			// 	!!this.globalConfig.aiAssistant.baseUrl || !!this.globalConfig.aiBuilder.apiKey;
+			this.settings.aiBuilder.provider = aiBuilderSettings.provider;
+			this.settings.aiBuilder.baseUrl = aiBuilderSettings.baseUrl;
+			this.settings.aiBuilder.hasApiKey = aiBuilderSettings.hasApiKey;
+			this.settings.aiBuilder.useResponsesApi = aiBuilderSettings.useResponsesApi;
+			this.settings.aiBuilder.setup =
+				!!this.globalConfig.aiAssistant.baseUrl || aiBuilderSettings.hasApiKey;
 		}
 
 		this.settings.mfa.enabled = this.globalConfig.mfa.enabled;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import type { AiBuilderProvider, AiBuilderSettingsRequestDto } from '@n8n/api-types';
 import { ref, onMounted, computed } from 'vue';
-import { N8nHeading, N8nCheckbox, N8nText } from '@n8n/design-system';
+import { N8nHeading, N8nCheckbox, N8nText, N8nButton, N8nFormInput } from '@n8n/design-system';
 import { useI18n } from '@n8n/i18n';
 import { useToast } from '@/app/composables/useToast';
 import { useDocumentTitle } from '@/app/composables/useDocumentTitle';
@@ -20,11 +21,30 @@ const assistantStore = useAssistantStore();
 const settingsStore = useSettingsStore();
 
 const allowSendingSchema = ref(true);
+const aiBuilderProvider = ref<AiBuilderProvider>('anthropic');
+const aiBuilderBaseUrl = ref('');
+const aiBuilderApiKey = ref('');
+const aiBuilderHasApiKey = ref(false);
+const aiBuilderUseResponsesApi = ref(true);
+const isSavingAiBuilderSettings = ref(false);
 
 const isAssistantEnabled = computed(() => assistantStore.isAssistantEnabled);
 const isBuilderEnabled = computed(() => settingsStore.isAiBuilderEnabled);
+const isAiBuilderFeatureLicensed = computed(
+	() => settingsStore.settings.aiBuilder?.enabled ?? false,
+);
 const isAskAiEnabled = computed(() => settingsStore.isAskAiEnabled);
 const allowSendingParameterValues = computed(() => settingsStore.isAiDataSharingEnabled);
+const providerOptions = computed(() => [
+	{
+		label: i18n.baseText('settings.ai.builderApi.provider.anthropic'),
+		value: 'anthropic',
+	},
+	{
+		label: i18n.baseText('settings.ai.builderApi.provider.openai'),
+		value: 'openai',
+	},
+]);
 
 const aiSettingsDescription = computed(() => {
 	if (isAssistantEnabled.value && isAskAiEnabled.value) {
@@ -72,8 +92,74 @@ const onallowSendingParameterValuesChange = async (newValue: boolean | string | 
 	}
 };
 
+const syncAiBuilderSettings = () => {
+	const aiBuilderSettings = settingsStore.settings.aiBuilder;
+	if (!aiBuilderSettings) return;
+
+	aiBuilderProvider.value = aiBuilderSettings.provider;
+	aiBuilderBaseUrl.value = aiBuilderSettings.baseUrl;
+	aiBuilderHasApiKey.value = aiBuilderSettings.hasApiKey;
+	aiBuilderUseResponsesApi.value = aiBuilderSettings.useResponsesApi;
+};
+
+const onUseResponsesApiChange = (newValue: boolean | string | number) => {
+	if (typeof newValue !== 'boolean') return;
+	aiBuilderUseResponsesApi.value = newValue;
+};
+
+const onSaveAiBuilderSettings = async () => {
+	const payload: AiBuilderSettingsRequestDto = {
+		provider: aiBuilderProvider.value,
+		baseUrl: aiBuilderBaseUrl.value.trim(),
+		useResponsesApi: aiBuilderUseResponsesApi.value,
+	};
+
+	const apiKey = aiBuilderApiKey.value.trim();
+	if (apiKey) {
+		payload.apiKey = apiKey;
+	}
+
+	isSavingAiBuilderSettings.value = true;
+	try {
+		await settingsStore.updateAiBuilderApiSettings(payload);
+		syncAiBuilderSettings();
+		aiBuilderApiKey.value = '';
+		toast.showMessage({
+			title: i18n.baseText('settings.ai.builderApi.updated.success'),
+			type: 'success',
+		});
+		telemetry.track('User changed AI Builder API settings', {
+			provider: aiBuilderProvider.value,
+			use_responses_api: aiBuilderUseResponsesApi.value,
+			has_api_key: aiBuilderHasApiKey.value,
+		});
+	} catch (error) {
+		toast.showError(error, i18n.baseText('settings.ai.builderApi.updated.error'));
+	} finally {
+		isSavingAiBuilderSettings.value = false;
+	}
+};
+
+const onClearAiBuilderApiKey = async () => {
+	isSavingAiBuilderSettings.value = true;
+	try {
+		await settingsStore.updateAiBuilderApiSettings({ clearApiKey: true });
+		syncAiBuilderSettings();
+		aiBuilderApiKey.value = '';
+		toast.showMessage({
+			title: i18n.baseText('settings.ai.builderApi.cleared.success'),
+			type: 'success',
+		});
+	} catch (error) {
+		toast.showError(error, i18n.baseText('settings.ai.builderApi.updated.error'));
+	} finally {
+		isSavingAiBuilderSettings.value = false;
+	}
+};
+
 onMounted(async () => {
 	documentTitle.set(i18n.baseText('settings.ai'));
+	syncAiBuilderSettings();
 });
 </script>
 
@@ -103,6 +189,81 @@ onMounted(async () => {
 				<N8nText :class="$style.checkboxDescription" color="text-base">
 					{{ i18n.baseText('settings.ai.allowSendingParameterValues.description') }}
 				</N8nText>
+			</div>
+		</div>
+		<div
+			v-if="isAiBuilderFeatureLicensed"
+			:class="$style.builderApiContainer"
+			data-test-id="ai-builder-api-settings"
+		>
+			<N8nHeading size="large">{{ i18n.baseText('settings.ai.builderApi.title') }}</N8nHeading>
+			<N8nText size="small" color="text-light">
+				{{ i18n.baseText('settings.ai.builderApi.description') }}
+			</N8nText>
+			<div :class="$style.group">
+				<label for="aiBuilderProvider">{{
+					i18n.baseText('settings.ai.builderApi.provider')
+				}}</label>
+				<N8nFormInput
+					id="aiBuilderProvider"
+					v-model="aiBuilderProvider"
+					label=""
+					type="select"
+					name="aiBuilderProvider"
+					:options="providerOptions"
+				/>
+			</div>
+			<div :class="$style.group">
+				<label for="aiBuilderBaseUrl">{{ i18n.baseText('settings.ai.builderApi.baseUrl') }}</label>
+				<N8nFormInput
+					id="aiBuilderBaseUrl"
+					v-model="aiBuilderBaseUrl"
+					label=""
+					name="aiBuilderBaseUrl"
+					:placeholder="i18n.baseText('settings.ai.builderApi.baseUrl.placeholder')"
+				/>
+			</div>
+			<div :class="$style.group">
+				<label for="aiBuilderApiKey">{{ i18n.baseText('settings.ai.builderApi.apiKey') }}</label>
+				<N8nFormInput
+					id="aiBuilderApiKey"
+					v-model="aiBuilderApiKey"
+					label=""
+					name="aiBuilderApiKey"
+					type="password"
+					:placeholder="i18n.baseText('settings.ai.builderApi.apiKey.placeholder')"
+				/>
+				<N8nText v-if="aiBuilderHasApiKey" size="small" color="text-light">
+					{{ i18n.baseText('settings.ai.builderApi.apiKey.configured') }}
+				</N8nText>
+			</div>
+			<div :class="$style.group">
+				<N8nCheckbox
+					:model-value="aiBuilderUseResponsesApi"
+					:label="i18n.baseText('settings.ai.builderApi.useResponsesApi.label')"
+					@update:model-value="onUseResponsesApiChange"
+				/>
+				<N8nText :class="$style.checkboxDescription" size="small" color="text-light">
+					{{ i18n.baseText('settings.ai.builderApi.useResponsesApi.description') }}
+				</N8nText>
+			</div>
+			<div :class="$style.actions">
+				<N8nButton
+					size="large"
+					:loading="isSavingAiBuilderSettings"
+					@click="onSaveAiBuilderSettings"
+				>
+					{{ i18n.baseText('settings.ai.builderApi.save') }}
+				</N8nButton>
+				<N8nButton
+					v-if="aiBuilderHasApiKey"
+					size="large"
+					type="tertiary"
+					:disabled="isSavingAiBuilderSettings"
+					@click="onClearAiBuilderApiKey"
+				>
+					{{ i18n.baseText('settings.ai.builderApi.apiKey.clear') }}
+				</N8nButton>
 			</div>
 		</div>
 		<div :class="$style.privacyNote">
@@ -135,6 +296,26 @@ onMounted(async () => {
 .content {
 	display: flex;
 	flex-direction: column;
+	gap: var(--spacing--2xs);
+}
+
+.builderApiContainer {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing--s);
+	border: var(--border-width) var(--border-style) var(--color--foreground-base);
+	border-radius: var(--radius);
+	padding: var(--spacing--md);
+}
+
+.group {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing--4xs);
+}
+
+.actions {
+	display: flex;
 	gap: var(--spacing--2xs);
 }
 
